@@ -4,12 +4,12 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -17,87 +17,55 @@ import android.view.SurfaceView;
 public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
 
     private SurfaceHolder mHolder;
-    /**
-     * 与SurfaceHolder绑定的Canvas
-     */
+
+    // 与SurfaceHolder绑定的Canvas
     private Canvas mCanvas;
-    /**
-     * 用于绘制的线程
-     */
+    // 用于绘制的线程
     private Thread t;
-    /**
-     * 线程的控制开关
-     */
+    // 线程的控制开关
     private boolean isRunning;
 
-    /**
-     * 抽奖的文字
-     */
+    // 抽奖的文字
     private String[] mStrs = new String[]{"单反相机", "IPAD", "恭喜发财", "IPHONE", "妹子一只", "恭喜发财"};
-    /**
-     * 每个盘块的颜色
-     */
-    private int[] mColors = new int[]{0xFFFFC300, 0xFFF17E01, 0xFFFFC300, 0xFFFFC433, 0xFFFFC300, 0xFFF17E01};
-    /**
-     * 与文字对应的图片
-     */
+    // 每个盘块的颜色
+    private int[] mColors = new int[]{0xFFFFC300, 0xFFF17E01, 0xFFFFC300, 0xFFF17E01, 0xFFFFC300, 0xFFF17E01};
+    // 与文字对应的图片
     private int[] mImgs = new int[]{R.drawable.bulb, R.drawable.camera,
-            R.drawable.circle_bg, R.drawable.computer, R.drawable.cup,
+            R.drawable.phone, R.drawable.computer, R.drawable.cup,
             R.drawable.diamond};
 
-    /**
-     * 与文字对应图片的bitmap数组
-     */
+    // 与文字对应图片的bitmap数组
     private Bitmap[] mImgsBitmap;
-    /**
-     * 盘块的个数
-     */
+    // 盘块的个数
     private int mItemCount = 6;
 
-    /**
-     * 绘制盘块的范围
-     */
+    // 绘制盘块的范围
     private RectF mRange = new RectF();
-    /**
-     * 圆的直径
-     */
+    // 圆的直径
     private int mRadius;
-    /**
-     * 绘制盘快的画笔
-     */
+    // 绘制盘快的画笔
     private Paint mArcPaint;
 
-    /**
-     * 绘制文字的画笔
-     */
+    // 绘制文字的画笔
     private Paint mTextPaint;
-
-    /**
-     * 滚动的速度
-     */
+    // 滚动的速度
     private double mSpeed;
+    private double mMaxSpeed;
     private volatile float mStartAngle = 0;
-    /**
-     * 是否点击了停止
-     */
+
+    // 控件的中心位置
+    private int mCenter;
+    // 控件的padding，这里我们认为4个padding的值一致，以paddingleft为标准
+    private int mPadding;
     private boolean isShouldEnd;
 
-    /**
-     * 控件的中心位置
-     */
-    private int mCenter;
-    /**
-     * 控件的padding，这里我们认为4个padding的值一致，以paddingleft为标准
-     */
-    private int mPadding;
+    // 控制转盘旋转起来或者停止时候的加速度
+    private float ACCELERATE_OFFSET = 0.2f;
 
-    /**
-     * 背景图的bitmap
-     */
-    private Bitmap mBgBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.circle_bg);
-    /**
-     * 文字的大小
-     */
+    // 总共旋转了多少角度
+    private float totalAngle = 0;
+
+    // 文字的大小
     private float mTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 20, getResources().getDisplayMetrics());
 
     public LuckyPanView(Context context) {
@@ -154,14 +122,6 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
             long start = System.currentTimeMillis();
             this.draw();
             long end = System.currentTimeMillis();
-
-            try {
-                if(end - start < 50L) {
-                    Thread.sleep(50L - (end - start));
-                }
-            } catch (InterruptedException var6) {
-                var6.printStackTrace();
-            }
         }
 
     }
@@ -170,9 +130,13 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
         try {
             this.mCanvas = this.mHolder.lockCanvas();
             if(this.mCanvas != null) {
-                this.drawBg();
+                mCanvas.drawColor(Color.WHITE);
                 float e = this.mStartAngle;
                 float sweepAngle = (float)(360 / this.mItemCount);
+
+                if (!isShouldEnd && mSpeed < mMaxSpeed) {
+                    this.mSpeed += ACCELERATE_OFFSET;
+                }
 
                 for(int i = 0; i < this.mItemCount; ++i) {
                     this.mArcPaint.setColor(this.mColors[i]);
@@ -184,7 +148,7 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
 
                 this.mStartAngle = (float)((double)this.mStartAngle + this.mSpeed);
                 if(this.isShouldEnd) {
-                    --this.mSpeed;
+                    this.mSpeed -= ACCELERATE_OFFSET;
                 }
 
                 if(this.mSpeed <= 0.0D) {
@@ -202,12 +166,6 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
             }
 
         }
-
-    }
-
-    private void drawBg() {
-        this.mCanvas.drawColor(-1);
-        this.mCanvas.drawBitmap(this.mBgBitmap, (Rect)null, new Rect(this.mPadding / 2, this.mPadding / 2, this.getMeasuredWidth() - this.mPadding / 2, this.getMeasuredWidth() - this.mPadding / 2), (Paint)null);
     }
 
     public void calInExactArea(float startAngle) {
@@ -218,7 +176,6 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
             float from = (float)(360 - (i + 1) * (360 / this.mItemCount));
             float to = from + 360.0F - (float)(i * (360 / this.mItemCount));
             if(rotate > from && rotate < to) {
-                Log.d("TAG", this.mStrs[i]);
                 return;
             }
         }
@@ -244,27 +201,19 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
     }
 
     public void luckyStart(int luckyIndex) {
-        float angle = (float)(360 / this.mItemCount);
-        float from = 270.0F - (float)(luckyIndex + 1) * angle;
-        float to = from + angle;
-        float targetFrom = 1440.0F + from;
-        float v1 = (float)(Math.sqrt((double)(1.0F + 8.0F * targetFrom)) - 1.0D) / 2.0F;
-        float targetTo = 1440.0F + to;
-        float v2 = (float)(Math.sqrt((double)(1.0F + 8.0F * targetTo)) - 1.0D) / 2.0F;
-        this.mSpeed = (double)((float)((double)v1 + Math.random() * (double)(v2 - v1)));
+        this.mMaxSpeed = (double)(Math.random() * 10 + 30);
+        this.mSpeed = 0;
         this.isShouldEnd = false;
+        totalAngle = 0;
     }
 
     public void luckyEnd() {
         this.mStartAngle = 0.0F;
         this.isShouldEnd = true;
+        this.mMaxSpeed = 0.0f;
     }
 
     public boolean isStart() {
         return this.mSpeed != 0.0D;
-    }
-
-    public boolean isShouldEnd() {
-        return this.isShouldEnd;
     }
 }

@@ -26,6 +26,7 @@ public class MainActivity extends AppCompatActivity {
                     startBtn.setText("停止");
                 } else {
                     startBtn.setText("开始");
+                    luckyPanView.luckyEnd();
                 }
             }
         });
