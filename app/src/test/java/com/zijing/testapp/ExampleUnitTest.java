@@ -1,4 +1,4 @@
-package zijing.com.lottery_demo;
+package com.zijing.testapp;
 
 import org.junit.Test;
 

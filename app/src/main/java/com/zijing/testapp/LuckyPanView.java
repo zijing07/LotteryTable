@@ -1,4 +1,4 @@
-package zijing.com.lottery_demo;
+package com.zijing.testapp;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -26,7 +26,7 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
     private boolean isRunning;
 
     // 抽奖的文字
-    private String[] mStrs = new String[]{"单反相机", "IPAD", "恭喜发财", "IPHONE", "妹子一只", "恭喜发财"};
+    private String[] mStrs = new String[]{"0", "1", "2", "3", "4", "5"};
     // 每个盘块的颜色
     private int[] mColors = new int[]{0xFFFFC300, 0xFFF17E01, 0xFFFFC300, 0xFFF17E01, 0xFFFFC300, 0xFFF17E01};
     // 与文字对应的图片
@@ -41,13 +41,17 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
 
     // 绘制盘块的范围
     private RectF mRange = new RectF();
+
     // 圆的直径
     private int mRadius;
+
     // 绘制盘快的画笔
     private Paint mArcPaint;
-
     // 绘制文字的画笔
     private Paint mTextPaint;
+    // 绘制指针的画笔
+    private Paint mArrowPaint;
+
     // 滚动的速度
     private double mSpeed;
     private double mMaxSpeed;
@@ -68,6 +72,9 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
     // 文字的大小
     private float mTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 20, getResources().getDisplayMetrics());
 
+    // 旋转完成时的回调函数
+    private OnSpinFinshedCallback spinResultCallback;
+
     public LuckyPanView(Context context) {
         this(context, (AttributeSet)null);
     }
@@ -82,9 +89,14 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
         this.setKeepScreenOn(true);
     }
 
+    public void setOnSpinFinshedCallback(OnSpinFinshedCallback callback) {
+        spinResultCallback = callback;
+    }
+
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         int width = Math.min(this.getMeasuredWidth(), this.getMeasuredHeight());
+        mTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, width / 30, getResources().getDisplayMetrics());
         this.mRadius = width - this.getPaddingLeft() - this.getPaddingRight();
         this.mPadding = this.getPaddingLeft();
         this.mCenter = width / 2;
@@ -98,6 +110,9 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
         this.mTextPaint = new Paint();
         this.mTextPaint.setColor(-1);
         this.mTextPaint.setTextSize(this.mTextSize);
+        this.mArrowPaint = new Paint();
+        this.mArrowPaint.setAntiAlias(true);
+        this.mArrowPaint.setColor(Color.RED);
         this.mRange = new RectF((float)this.getPaddingLeft(), (float)this.getPaddingLeft(), (float)(this.mRadius + this.getPaddingLeft()), (float)(this.mRadius + this.getPaddingLeft()));
         this.mImgsBitmap = new Bitmap[this.mItemCount];
 
@@ -115,13 +130,13 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
 
     public void surfaceDestroyed(SurfaceHolder holder) {
         this.isRunning = false;
+        this.t.interrupt();
+        this.t = null;
     }
 
     public void run() {
         while(this.isRunning) {
-            long start = System.currentTimeMillis();
             this.draw();
-            long end = System.currentTimeMillis();
         }
 
     }
@@ -138,6 +153,8 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
                     this.mSpeed += ACCELERATE_OFFSET;
                 }
 
+                totalAngle += mSpeed;
+
                 for(int i = 0; i < this.mItemCount; ++i) {
                     this.mArcPaint.setColor(this.mColors[i]);
                     this.mCanvas.drawArc(this.mRange, e, sweepAngle, true, this.mArcPaint);
@@ -146,13 +163,20 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
                     e += sweepAngle;
                 }
 
+                this.drawArrow();
+
                 this.mStartAngle = (float)((double)this.mStartAngle + this.mSpeed);
                 if(this.isShouldEnd) {
                     this.mSpeed -= ACCELERATE_OFFSET;
                 }
 
-                if(this.mSpeed <= 0.0D) {
+                if(this.mSpeed < 0.0D) {
                     this.mSpeed = 0.0D;
+                    if (isShouldEnd) {
+                        // 旋转完成, isShouldEnd 从 true --> false, 同时 speed 降到 0
+                        int index = 5 - (((int)totalAngle + 90) % 360 ) / 60;
+                        spinResultCallback.onSpoinFinished(index);
+                    }
                     this.isShouldEnd = false;
                 }
 
@@ -179,7 +203,17 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
                 return;
             }
         }
+    }
 
+    // 画指针箭头
+    private void drawArrow() {
+        Path path = new Path();
+        path.moveTo(mCenter, mCenter - mCenter / 3);
+        path.lineTo(mCenter + mCenter / 8, mCenter);
+        path.lineTo(mCenter - mCenter / 8, mCenter);
+        path.close();
+        mCanvas.drawPath(path, mArrowPaint);
+        mCanvas.drawCircle(mCenter, mCenter, mCenter/6, mArrowPaint);
     }
 
     private void drawIcon(float startAngle, int i) {
@@ -200,20 +234,24 @@ public class LuckyPanView extends SurfaceView implements SurfaceHolder.Callback,
         this.mCanvas.drawTextOnPath(string, path, hOffset, vOffset, this.mTextPaint);
     }
 
-    public void luckyStart(int luckyIndex) {
+    public void luckyStart() {
         this.mMaxSpeed = (double)(Math.random() * 10 + 30);
         this.mSpeed = 0;
         this.isShouldEnd = false;
-        totalAngle = 0;
+        this.mStartAngle = 0;
+        this.totalAngle = 0;
     }
 
     public void luckyEnd() {
-        this.mStartAngle = 0.0F;
         this.isShouldEnd = true;
         this.mMaxSpeed = 0.0f;
     }
 
     public boolean isStart() {
         return this.mSpeed != 0.0D;
+    }
+
+    public static interface OnSpinFinshedCallback {
+        public void onSpoinFinished(int resultIndex);
     }
 }

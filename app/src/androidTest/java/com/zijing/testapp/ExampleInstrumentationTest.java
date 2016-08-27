@@ -1,11 +1,13 @@
-package zijing.com.lottery_demo;
+package com.zijing.testapp;
 
 import android.content.Context;
 import android.support.test.InstrumentationRegistry;
+import android.support.test.filters.MediumTest;
 import android.support.test.runner.AndroidJUnit4;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 
 import static org.junit.Assert.*;
 
@@ -14,13 +16,14 @@ import static org.junit.Assert.*;
  *
  * @see <a href="http://d.android.com/tools/testing">Testing documentation</a>
  */
+@MediumTest
 @RunWith(AndroidJUnit4.class)
-public class ExampleInstrumentedTest {
+public class ExampleInstrumentationTest {
     @Test
     public void useAppContext() throws Exception {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getTargetContext();
 
-        assertEquals("zijing.com.lottery_demo", appContext.getPackageName());
+        assertEquals("com.zijing.testapp", appContext.getPackageName());
     }
 }
